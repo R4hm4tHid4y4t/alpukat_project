@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+
+# Environment
+.env
+
+# Storage (jangan commit gambar user)
+storage/uploads/*
+!storage/uploads/.gitkeep
+
+# Model TFLite (file besar, gunakan Git LFS atau simpan terpisah)
+models_tflite/*.tflite
+!models_tflite/.gitkeep
+
+# Alembic
+alembic/versions/*.py
+
+# IDE
+.vscode/
+.idea/
+*.swp

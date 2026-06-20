@@ -1,0 +1,19 @@
+# --- Python / FastAPI (alpukat_api) ---
+alpukat_api/.venv/
+alpukat_api/**/__pycache__/
+alpukat_api/**/*.pyc
+alpukat_api/.env
+alpukat_api/storage/
+
+# --- Flutter (alpukat_app) ---
+alpukat_app/build/
+alpukat_app/.dart_tool/
+alpukat_app/.flutter-plugins
+alpukat_app/.flutter-plugins-dependencies
+alpukat_app/android/.gradle/
+alpukat_app/ios/Pods/
+alpukat_app/ios/.symlinks/
+alpukat_app/web/build/
+
+# --- General ---
+*.log
