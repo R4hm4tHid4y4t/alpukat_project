@@ -43,6 +43,16 @@ class Settings(BaseSettings):
 
     # Confidence
     confidence_threshold: float = 0.80
+    # Ambang batas reject (di bawah ini, dianggap BUKAN alpukat sama sekali).
+    # Dipakai terhadap RATA-RATA confidence varietas + kematangan (lihat
+    # routers/deteksi.py). Sengaja dibuat konservatif (rendah) — hasil
+    # pengujian menunjukkan foto alpukat asli yang kondisinya kurang ideal
+    # (beda pencahayaan/background dari data training) bisa saja cuma
+    # mendapat confidence ~60%, jadi threshold terlalu tinggi berisiko
+    # menolak foto alpukat yang sah. Heuristik ini TIDAK sempurna untuk
+    # menyaring semua objek bukan-alpukat — solusi paling robust tetap
+    # retrain model dengan kelas negatif "bukan_alpukat".
+    reject_threshold_varietas: float = 0.50
 
     model_config = SettingsConfigDict(
         env_file=".env",

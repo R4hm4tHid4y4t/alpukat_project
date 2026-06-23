@@ -144,19 +144,21 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: List.generate(6, (i) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4),
-                    child: SizedBox(
-                      width: 45, height: 56,
-                      child: TextField(
-                        controller: _controllers[i],
-                        focusNode: _focusNodes[i],
-                        textAlign: TextAlign.center,
-                        keyboardType: TextInputType.number,
-                        maxLength: 1,
-                        style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
-                        decoration: const InputDecoration(counterText: ''),
-                        onChanged: (v) => _onDigitChanged(i, v),
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: SizedBox(
+                        height: 56,
+                        child: TextField(
+                          controller: _controllers[i],
+                          focusNode: _focusNodes[i],
+                          textAlign: TextAlign.center,
+                          keyboardType: TextInputType.number,
+                          maxLength: 1,
+                          style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold),
+                          decoration: const InputDecoration(counterText: ''),
+                          onChanged: (v) => _onDigitChanged(i, v),
+                        ),
                       ),
                     ),
                   );

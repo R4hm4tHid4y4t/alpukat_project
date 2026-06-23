@@ -55,6 +55,32 @@ async def deteksi_alpukat(
     except Exception as e:
         raise HTTPException(status_code=500, detail="Gagal menganalisis kematangan. Silakan coba lagi.")
 
+    # 3b. Tolak gambar yang RATA-RATA confidence-nya terlalu rendah —
+    # kemungkinan besar BUKAN gambar alpukat sama sekali (model cuma dilatih
+    # dengan kelas Aligator/Miki & 4 tingkat kematangan, jadi objek lain akan
+    # dipaksa masuk ke salah satu kelas itu kalau tidak ada pengecekan ini).
+    #
+    # CATATAN PENTING: ini heuristik (Maximum Softmax Probability), bukan
+    # solusi sempurna — softmax classifier tertutup TIDAK PERNAH benar-benar
+    # tahu "saya tidak tahu". Threshold ini sengaja dibuat konservatif
+    # (rendah) supaya foto alpukat asli yang kualitasnya kurang ideal
+    # (pencahayaan/background/sudut berbeda dari data training) tidak
+    # ikut salah ditolak. Konsekuensinya: sebagian gambar bukan-alpukat
+    # yang "mirip" alpukat (closeup buah/objek bulat berwarna hijau-cokelat)
+    # bisa saja masih lolos. Solusi yang lebih robust: retrain model dengan
+    # menambah kelas negatif "bukan_alpukat" di dataset.
+    avg_confidence = (var_result["confidence"] + kem_result["confidence"]) / 2
+    if avg_confidence < (settings.reject_threshold_varietas * 100):
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "Gambar tidak terdeteksi sebagai buah alpukat "
+                f"(confidence rata-rata hanya {avg_confidence:.1f}%). "
+                "Pastikan foto menunjukkan buah alpukat dengan jelas, "
+                "pencahayaan cukup, dan tidak terhalang objek lain."
+            ),
+        )
+
     # 4. Cari varietas_id dari database
     result = await db.execute(
         select(Varietas).where(

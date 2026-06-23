@@ -48,12 +48,12 @@ GoRouter createRouter(AuthBloc authBloc) {
 
       if (!isAuth && !isOnAuthPage) return '/login';
 
-      // Admin login → langsung ke panel admin
-      if (isAuth && isAdmin && (state.matchedLocation == '/login' || state.matchedLocation == '/register')) {
+      // Login/Register/Verifikasi OTP berhasil → langsung ke panel admin
+      if (isAuth && isAdmin && isOnAuthPage) {
         return '/admin/dashboard';
       }
-      // User biasa login → ke dashboard mobile
-      if (isAuth && !isAdmin && (state.matchedLocation == '/login' || state.matchedLocation == '/register')) {
+      // Login/Register/Verifikasi OTP berhasil → ke dashboard mobile
+      if (isAuth && !isAdmin && isOnAuthPage) {
         return '/home/dashboard';
       }
       // Cegah user biasa mengakses panel admin

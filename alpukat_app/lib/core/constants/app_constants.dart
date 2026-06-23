@@ -6,7 +6,7 @@ class AppConstants {
   // IP Anda saat ini menurut ipconfig adalah: 192.168.1.21
   // ============================================================
   
-  static const String baseUrl = "http://10.20.27.43:8000";
+  static const String baseUrl = "http://192.168.1.6:8000";
   static const String apiUrl = '$baseUrl/api';
   static const String storageUrl = '$baseUrl/storage';
 

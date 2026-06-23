@@ -1,8 +1,10 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI, Request, status
+import logging
+from fastapi import FastAPI, Request, status, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from starlette.exceptions import HTTPException as StarletteHTTPException
 from fastapi.staticfiles import StaticFiles
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
@@ -12,6 +14,12 @@ import os
 from app.config import get_settings
 
 settings = get_settings()
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+)
+
 limiter = Limiter(key_func=get_remote_address)
 
 
@@ -81,6 +89,23 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
             "message": "Data yang dikirim tidak valid",
             "data": None,
             "errors": errors,
+        },
+    )
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    # Samakan format dengan success_response/error_response di utils/response.py
+    # supaya Flutter (DioClient.extractErrorMessage -> data['message']) bisa
+    # membaca pesan error custom dari HTTPException(detail=...) di seluruh app.
+    message = exc.detail if isinstance(exc.detail, str) else "Terjadi kesalahan"
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "success": False,
+            "message": message,
+            "data": None,
+            "errors": None if isinstance(exc.detail, str) else exc.detail,
         },
     )
 

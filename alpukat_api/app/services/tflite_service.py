@@ -23,9 +23,12 @@ class TFLiteInferenceService:
     @classmethod
     def initialize(cls, settings) -> None:
         try:
-            import tflite_runtime.interpreter as tflite
-        except ImportError:
+            import importlib
+
+            tflite = importlib.import_module("tflite_runtime.interpreter")
+        except ModuleNotFoundError:
             import tensorflow as tf
+
             tflite = tf.lite
 
         # Load model varietas

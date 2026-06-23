@@ -1,3 +1,4 @@
+import logging
 from datetime import datetime, timedelta, timezone
 from fastapi import APIRouter, Depends, HTTPException, status, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -18,6 +19,7 @@ from app.config import get_settings
 
 router = APIRouter()
 settings = get_settings()
+logger = logging.getLogger("alpukat.auth")
 
 
 def _make_token_response(user: User) -> dict:
@@ -93,9 +95,11 @@ async def register(body: RegisterRequest, db: AsyncSession = Depends(get_db)):
 
     try:
         await send_otp_email(body.email, body.nama, kode_otp, "verifikasi")
-    except Exception:
-        # Jangan gagalkan registrasi jika email gagal terkirim
-        pass
+    except Exception as e:
+        # Registrasi tetap dianggap berhasil (OTP sudah tersimpan di DB,
+        # user bisa minta kirim ulang), tapi WAJIB di-log supaya kegagalan
+        # SMTP terlihat di server, bukan hilang diam-diam.
+        logger.exception(f"Gagal mengirim email OTP verifikasi ke {body.email}: {e}")
 
     return success_response(
         data={"user_id": user.id, "email": user.email},
@@ -164,8 +168,8 @@ async def login(body: LoginRequest, db: AsyncSession = Depends(get_db)):
         await db.commit()
         try:
             await send_otp_email(user.email, user.nama, kode_otp, "verifikasi")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception(f"Gagal mengirim email OTP verifikasi (login) ke {user.email}: {e}")
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Akun belum diverifikasi. Kode OTP baru telah dikirim ke email Anda.",
@@ -189,8 +193,8 @@ async def forgot_password(body: ForgotPasswordRequest, db: AsyncSession = Depend
         await db.commit()
         try:
             await send_otp_email(user.email, user.nama, kode_otp, "reset")
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception(f"Gagal mengirim email OTP reset password ke {user.email}: {e}")
 
     return success_response(
         message="Jika email terdaftar, kode OTP reset password akan dikirim.",
