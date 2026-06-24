@@ -17,3 +17,4 @@ alpukat_app/web/build/
 
 # --- General ---
 *.log
+*.bak

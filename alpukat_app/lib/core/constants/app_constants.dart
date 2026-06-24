@@ -2,13 +2,16 @@ class AppConstants {
   AppConstants._();
 
   // ============================================================
-  // PENTING: Sesuaikan baseUrl berdasarkan device yang digunakan
-  // IP Anda saat ini menurut ipconfig adalah: 192.168.1.21
+  // baseUrl sama untuk Web & Mobile, karena pakai `adb reverse`:
+  //   adb reverse tcp:8000 tcp:8000
+  // Jalankan command itu setiap kali HP baru dicolok/restart debug session.
+  // Tidak perlu IP WiFi, tidak perlu HP & laptop satu network.
   // ============================================================
-  
-  static const String baseUrl = "http://192.168.1.6:8000";
-  static const String apiUrl = '$baseUrl/api';
-  static const String storageUrl = '$baseUrl/storage';
+
+  static String get baseUrl => 'http://localhost:8000';
+
+  static String get apiUrl => '$baseUrl/api';
+  static String get storageUrl => '$baseUrl/storage';
 
   // App Info
   static const String appName = 'Alpukat CNN';

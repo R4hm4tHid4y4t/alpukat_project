@@ -55,9 +55,9 @@ async def dashboard(
         .where(HasilDeteksi.status_flag == "perlu_ditinjau")
     )).scalar()
 
-    # Akurasi dari model aktif
+    # Akurasi dari model aktif (prioritaskan varietas)
     model_aktif = (await db.execute(
-        select(ModelCnn).where(ModelCnn.status_aktif == 1).limit(1)
+        select(ModelCnn).where(ModelCnn.status_aktif == 1).order_by(ModelCnn.id).limit(1)
     )).scalar_one_or_none()
 
     # Tren 7 hari terakhir
@@ -356,17 +356,39 @@ async def activate_model(
     if not model:
         raise HTTPException(status_code=404, detail="Model tidak ditemukan")
 
-    # Nonaktifkan semua model, aktifkan yang dipilih
-    await db.execute(update(ModelCnn).values(status_aktif=0))
+    # Tentukan tipe model berdasarkan versi (varietas / kematangan)
+    # Nonaktifkan hanya model dengan tipe yang sama, bukan semua model
+    tipe = "varietas" if "varietas" in model.versi else "kematangan"
+    await db.execute(
+        update(ModelCnn)
+        .where(ModelCnn.versi.contains(tipe))
+        .values(status_aktif=0)
+    )
     model.status_aktif = 1
     await db.commit()
 
-    # Reload TFLite service jika path tersedia
+    # Reload TFLite service jika kedua model aktif tersedia
     try:
-        varietas_path = f"models_tflite/varietas_{model.versi}.tflite"
-        kematangan_path = f"models_tflite/kematangan_{model.versi}.tflite"
-        if os.path.exists(varietas_path) and os.path.exists(kematangan_path):
-            TFLiteInferenceService.reload(varietas_path, kematangan_path, settings)
+        # Ambil model varietas dan kematangan yang aktif
+        varietas_model = (await db.execute(
+            select(ModelCnn).where(
+                ModelCnn.status_aktif == 1,
+                ModelCnn.versi.contains("varietas")
+            )
+        )).scalar_one_or_none()
+
+        kematangan_model = (await db.execute(
+            select(ModelCnn).where(
+                ModelCnn.status_aktif == 1,
+                ModelCnn.versi.contains("kematangan")
+            )
+        )).scalar_one_or_none()
+
+        if varietas_model and kematangan_model:
+            varietas_path = settings.model_varietas_path
+            kematangan_path = settings.model_kematangan_path
+            if os.path.exists(varietas_path) and os.path.exists(kematangan_path):
+                TFLiteInferenceService.reload(varietas_path, kematangan_path, settings)
     except Exception:
         pass
 
