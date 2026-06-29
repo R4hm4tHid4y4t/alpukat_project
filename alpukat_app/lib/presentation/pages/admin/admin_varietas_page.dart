@@ -34,8 +34,8 @@ class _AdminVarietasPageState extends State<AdminVarietasPage> {
       });
     } on ServerException catch (e) {
       setState(() { _error = e.message; _loading = false; });
-    } catch (e) {
-      setState(() { _error = 'Gagal memuat data varietas'; _loading = false; });
+    } catch (_) {
+      setState(() { _error = 'Tidak dapat terhubung ke server'; _loading = false; });
     }
   }
 
@@ -46,48 +46,80 @@ class _AdminVarietasPageState extends State<AdminVarietasPage> {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text(isEdit ? 'Edit Varietas' : 'Tambah Varietas'),
-        content: SingleChildScrollView(
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          width: 480,
+          padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              TextField(controller: namaCtrl, decoration: const InputDecoration(labelText: 'Nama Varietas')),
-              const SizedBox(height: 12),
-              TextField(controller: deskripsiCtrl, maxLines: 3, decoration: const InputDecoration(labelText: 'Deskripsi')),
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(color: AppColors.extraLightGreen, borderRadius: BorderRadius.circular(10)),
+                    child: const Icon(Icons.eco_rounded, color: AppColors.primaryGreen, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Text(isEdit ? 'Edit Varietas' : 'Tambah Varietas',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                  const Spacer(),
+                  IconButton(onPressed: () => Navigator.pop(ctx), icon: const Icon(Icons.close, size: 20)),
+                ],
+              ),
+              const SizedBox(height: 20),
+              _buildInputField('Nama Varietas', namaCtrl, hint: 'cth: Aligator, Miki'),
+              const SizedBox(height: 16),
+              _buildInputField('Deskripsi', deskripsiCtrl, hint: 'Deskripsi singkat varietas...', maxLines: 4),
+              const SizedBox(height: 24),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () => Navigator.pop(ctx),
+                      style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14)),
+                      child: const Text('Batal'),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.primaryGreen,
+                        foregroundColor: Colors.white,
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                      ),
+                      onPressed: () async {
+                        if (namaCtrl.text.trim().isEmpty) return;
+                        try {
+                          final remote = sl<AdminRemoteDataSource>();
+                          if (isEdit) {
+                            await remote.updateVarietas(item['id'] as int,
+                                nama: namaCtrl.text.trim(), deskripsi: deskripsiCtrl.text.trim());
+                          } else {
+                            await remote.createVarietas(
+                                nama: namaCtrl.text.trim(), deskripsi: deskripsiCtrl.text.trim());
+                          }
+                          if (!ctx.mounted) return;
+                          Navigator.pop(ctx);
+                          if (!mounted) return;
+                          _load();
+                          _showSnackbar(isEdit ? 'Varietas berhasil diperbarui' : 'Varietas berhasil ditambahkan', success: true);
+                        } on ServerException catch (e) {
+                          if (mounted) _showSnackbar(e.message, success: false);
+                        }
+                      },
+                      child: Text(isEdit ? 'Perbarui' : 'Simpan'),
+                    ),
+                  ),
+                ],
+              ),
             ],
           ),
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Batal')),
-          ElevatedButton(
-            onPressed: () async {
-              if (namaCtrl.text.trim().isEmpty) return;
-              try {
-                final remote = sl<AdminRemoteDataSource>();
-                if (isEdit) {
-                  await remote.updateVarietas(item['id'] as int, nama: namaCtrl.text.trim(), deskripsi: deskripsiCtrl.text.trim());
-                } else {
-                  await remote.createVarietas(nama: namaCtrl.text.trim(), deskripsi: deskripsiCtrl.text.trim());
-                }
-                
-                if (!ctx.mounted) return;
-                Navigator.pop(ctx);
-                
-                if (!mounted) return;
-                _load();
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(isEdit ? 'Varietas diperbarui' : 'Varietas ditambahkan'), backgroundColor: AppColors.successColor),
-                );
-              } on ServerException catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.errorColor));
-                }
-              }
-            },
-            child: const Text('Simpan'),
-          ),
-        ],
       ),
     );
   }
@@ -96,86 +128,230 @@ class _AdminVarietasPageState extends State<AdminVarietasPage> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Hapus Varietas'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_rounded, color: AppColors.errorColor, size: 22),
+            SizedBox(width: 8),
+            Text('Hapus Varietas', style: TextStyle(fontSize: 16)),
+          ],
+        ),
         content: Text('Hapus "${item['nama_varietas']}"? Tindakan ini tidak dapat dibatalkan.'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
-          TextButton(onPressed: () => Navigator.pop(ctx, true), child: const Text('Hapus', style: TextStyle(color: AppColors.errorColor))),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.errorColor, foregroundColor: Colors.white),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus'),
+          ),
         ],
       ),
     );
     if (confirm != true) return;
-
     try {
       await sl<AdminRemoteDataSource>().deleteVarietas(item['id'] as int);
       _load();
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Varietas dihapus'), backgroundColor: AppColors.successColor));
-      }
+      if (mounted) _showSnackbar('Varietas berhasil dihapus', success: true);
     } on ServerException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(e.message), backgroundColor: AppColors.errorColor));
-      }
+      if (mounted) _showSnackbar(e.message, success: false);
     }
+  }
+
+  void _showSnackbar(String msg, {required bool success}) {
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Row(children: [
+        Icon(success ? Icons.check_circle_rounded : Icons.error_rounded, color: Colors.white, size: 18),
+        const SizedBox(width: 8),
+        Text(msg),
+      ]),
+      backgroundColor: success ? AppColors.successColor : AppColors.errorColor,
+      behavior: SnackBarBehavior.floating,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+      margin: const EdgeInsets.all(16),
+    ));
+  }
+
+  Widget _buildInputField(String label, TextEditingController ctrl, {String? hint, int maxLines = 1}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: Color(0xFF1A2E1A))),
+        const SizedBox(height: 6),
+        TextField(
+          controller: ctrl,
+          maxLines: maxLines,
+          decoration: InputDecoration(
+            hintText: hint,
+            hintStyle: const TextStyle(color: AppColors.textLightGrey, fontSize: 13),
+            filled: true,
+            fillColor: const Color(0xFFF8FAF8),
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE0E8E0))),
+            enabledBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: Color(0xFFE0E8E0))),
+            focusedBorder: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: const BorderSide(color: AppColors.primaryGreen, width: 1.5)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          ),
+        ),
+      ],
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final screenWidth = MediaQuery.of(context).size.width;
+    final crossAxisCount = screenWidth > 900 ? 3 : (screenWidth > 600 ? 2 : 1);
+
     return Scaffold(
-      backgroundColor: AppColors.backgroundWhite,
-      appBar: AppBar(title: const Text('Kelola Varietas')),
-      drawer: const AdminDrawer(currentRoute: 'varietas'),
-      floatingActionButton: FloatingActionButton(
-        onPressed: () => _showForm(),
-        child: const Icon(Icons.add),
+      backgroundColor: const Color(0xFFF5F7F5),
+      appBar: AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        surfaceTintColor: Colors.transparent,
+        iconTheme: const IconThemeData(color: Color(0xFF1A2E1A)),
+        title: const Text('Kelola Varietas', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A2E1A))),
+        actions: [
+          Padding(
+            padding: const EdgeInsets.only(right: 16),
+            child: ElevatedButton.icon(
+              onPressed: () => _showForm(),
+              icon: const Icon(Icons.add_rounded, size: 18),
+              label: const Text('Tambah'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryGreen,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+              ),
+            ),
+          ),
+        ],
       ),
+      drawer: const AdminDrawer(currentRoute: 'varietas'),
       body: _loading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Center(child: CircularProgressIndicator(color: AppColors.primaryGreen))
           : _error != null
               ? ErrorStateWidget(message: _error!, onRetry: _load)
-              : RefreshIndicator(
-                  onRefresh: _load,
-                  child: SingleChildScrollView(
-                    physics: const AlwaysScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(16),
-                    child: Card(
-                      child: SingleChildScrollView(
-                        scrollDirection: Axis.horizontal,
-                        child: DataTable(
-                          columns: const [
-                            DataColumn(label: Text('ID')),
-                            DataColumn(label: Text('Nama Varietas')),
-                            DataColumn(label: Text('Deskripsi')),
-                            DataColumn(label: Text('Total Deteksi')),
-                            DataColumn(label: Text('Aksi')),
-                          ],
-                          rows: _items.map((item) {
-                            final m = item as Map<String, dynamic>;
-                            final deskripsi = (m['deskripsi'] as String? ?? '');
-                            return DataRow(cells: [
-                              DataCell(Text('${m['id']}')),
-                              DataCell(Text(m['nama_varietas'] as String, style: const TextStyle(fontWeight: FontWeight.bold))),
-                              DataCell(SizedBox(
-                                width: 250,
-                                child: Text(
-                                  deskripsi.length > 60 ? '${deskripsi.substring(0, 60)}...' : deskripsi,
-                                  style: const TextStyle(fontSize: 12),
-                                ),
-                              )),
-                              DataCell(Text('${m['total_deteksi'] ?? 0}')),
-                              DataCell(Row(
-                                children: [
-                                  IconButton(icon: const Icon(Icons.edit, size: 18, color: AppColors.primaryGreen), onPressed: () => _showForm(item: m)),
-                                  IconButton(icon: const Icon(Icons.delete, size: 18, color: AppColors.errorColor), onPressed: () => _delete(m)),
-                                ],
-                              )),
-                            ]);
-                          }).toList(),
+              : _items.isEmpty
+                  ? _buildEmptyState()
+                  : RefreshIndicator(
+                      onRefresh: _load,
+                      color: AppColors.primaryGreen,
+                      child: GridView.builder(
+                        padding: const EdgeInsets.all(20),
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: crossAxisCount,
+                          childAspectRatio: 1.4,
+                          crossAxisSpacing: 16,
+                          mainAxisSpacing: 16,
                         ),
+                        itemCount: _items.length,
+                        itemBuilder: (_, i) => _buildVarietasCard(_items[i] as Map<String, dynamic>),
                       ),
                     ),
-                  ),
+    );
+  }
+
+  Widget _buildVarietasCard(Map<String, dynamic> m) {
+    final nama = m['nama_varietas'] as String;
+    final deskripsi = m['deskripsi'] as String? ?? '-';
+    final totalDeteksi = m['total_deteksi'] as int? ?? 0;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10, offset: const Offset(0, 4))],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Header
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: const BoxDecoration(
+              gradient: LinearGradient(colors: [Color(0xFF2D5A27), Color(0xFF4CAF50)], begin: Alignment.topLeft, end: Alignment.bottomRight),
+              borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+            ),
+            child: Row(
+              children: [
+                const Icon(Icons.eco_rounded, color: Colors.white, size: 22),
+                const SizedBox(width: 10),
+                Expanded(child: Text(nama, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15))),
+                PopupMenuButton<String>(
+                  icon: const Icon(Icons.more_vert_rounded, color: Colors.white70, size: 20),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  onSelected: (v) {
+                    if (v == 'edit') _showForm(item: m);
+                    if (v == 'delete') _delete(m);
+                  },
+                  itemBuilder: (_) => [
+                    const PopupMenuItem(value: 'edit', child: Row(children: [Icon(Icons.edit_rounded, size: 16, color: AppColors.primaryGreen), SizedBox(width: 8), Text('Edit')])),
+                    const PopupMenuItem(value: 'delete', child: Row(children: [Icon(Icons.delete_rounded, size: 16, color: AppColors.errorColor), SizedBox(width: 8), Text('Hapus', style: TextStyle(color: AppColors.errorColor))])),
+                  ],
                 ),
+              ],
+            ),
+          ),
+          // Body
+          Expanded(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      deskripsi,
+                      style: const TextStyle(fontSize: 12, color: AppColors.textGrey, height: 1.5),
+                      overflow: TextOverflow.ellipsis,
+                      maxLines: 3,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(color: AppColors.extraLightGreen, borderRadius: BorderRadius.circular(8)),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.analytics_rounded, size: 13, color: AppColors.primaryGreen),
+                        const SizedBox(width: 5),
+                        Text('$totalDeteksi deteksi', style: const TextStyle(fontSize: 11, color: AppColors.primaryGreen, fontWeight: FontWeight.w600)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(color: AppColors.extraLightGreen, shape: BoxShape.circle),
+            child: const Icon(Icons.eco_rounded, size: 48, color: AppColors.primaryGreen),
+          ),
+          const SizedBox(height: 16),
+          const Text('Belum ada data varietas', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Color(0xFF1A2E1A))),
+          const SizedBox(height: 8),
+          const Text('Tambahkan varietas alpukat pertama', style: TextStyle(fontSize: 13, color: AppColors.textGrey)),
+          const SizedBox(height: 20),
+          ElevatedButton.icon(
+            onPressed: () => _showForm(),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Tambah Varietas'),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen, foregroundColor: Colors.white),
+          ),
+        ],
+      ),
     );
   }
 }
