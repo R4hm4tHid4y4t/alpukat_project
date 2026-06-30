@@ -339,64 +339,23 @@ async def delete_kematangan(
 
 
 # ── UC-15: KELOLA MODEL CNN ───────────────────────────────
-@router.get("/model")
-async def list_model(admin: User = Depends(get_current_admin), db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(ModelCnn).order_by(desc(ModelCnn.created_at)))
-    return success_response(data=[m.to_dict() for m in result.scalars().all()])
-
-
-@router.post("/model/activate/{model_id}")
-async def activate_model(
-    model_id: int,
-    admin: User = Depends(get_current_admin),
-    db: AsyncSession = Depends(get_db),
+# ── UC-15: EVALUASI MODEL CNN ─────────────────────────────
+@router.get("/model/evaluasi")
+async def get_evaluasi_model(
+    admin: User = Depends(get_current_admin), 
+    db: AsyncSession = Depends(get_db)
 ):
-    result = await db.execute(select(ModelCnn).where(ModelCnn.id == model_id))
-    model = result.scalar_one_or_none()
-    if not model:
-        raise HTTPException(status_code=404, detail="Model tidak ditemukan")
-
-    # Tentukan tipe model berdasarkan versi (varietas / kematangan)
-    # Nonaktifkan hanya model dengan tipe yang sama, bukan semua model
-    tipe = "varietas" if "varietas" in model.versi else "kematangan"
-    await db.execute(
-        update(ModelCnn)
-        .where(ModelCnn.versi.contains(tipe))
-        .values(status_aktif=0)
-    )
-    model.status_aktif = 1
-    await db.commit()
-
-    # Reload TFLite service jika kedua model aktif tersedia
-    try:
-        # Ambil model varietas dan kematangan yang aktif
-        varietas_model = (await db.execute(
-            select(ModelCnn).where(
-                ModelCnn.status_aktif == 1,
-                ModelCnn.versi.contains("varietas")
-            )
-        )).scalar_one_or_none()
-
-        kematangan_model = (await db.execute(
-            select(ModelCnn).where(
-                ModelCnn.status_aktif == 1,
-                ModelCnn.versi.contains("kematangan")
-            )
-        )).scalar_one_or_none()
-
-        if varietas_model and kematangan_model:
-            varietas_path = settings.model_varietas_path
-            kematangan_path = settings.model_kematangan_path
-            if os.path.exists(varietas_path) and os.path.exists(kematangan_path):
-                TFLiteInferenceService.reload(varietas_path, kematangan_path, settings)
-    except Exception:
-        pass
-
+    """
+    Endpoint untuk mengambil metrik evaluasi dari model yang aktif saat ini
+    (opsional jika ingin disambungkan kembali dengan data dinamis UI di kemudian hari).
+    """
+    result = await db.execute(select(ModelCnn).where(ModelCnn.status_aktif == 1))
+    models = result.scalars().all()
+    
     return success_response(
-        data=model.to_dict(),
-        message=f"Model {model.versi} berhasil diaktifkan",
+        data=[m.to_dict() for m in models],
+        message="Data evaluasi model berhasil diambil"
     )
-
 
 # ── UC-16, UC-17: RIWAYAT DETEKSI GLOBAL ─────────────────
 @router.get("/deteksi")
