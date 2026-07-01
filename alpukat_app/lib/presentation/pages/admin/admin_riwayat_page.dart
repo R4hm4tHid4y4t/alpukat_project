@@ -190,21 +190,22 @@ class _AdminRiwayatPageState extends State<AdminRiwayatPage> {
     if (_exporting) return;
     setState(() => _exporting = true);
     try {
-      // Bytes diambil lewat Dio (bukan navigasi ke URL langsung), jadi
-      // header Authorization (Bearer token) otomatis ikut dan tidak lagi
-      // muncul error "Not authenticated".
       final bytes = await sl<AdminRemoteDataSource>().exportDeteksiCsv();
       final now = DateTime.now();
-      final filename = 'riwayat_deteksi_'
+      final filename = 'laporan_riwayat_deteksi_'
           '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}'
-          '.csv';
-      final savedPath = await downloadFile(filename: filename, bytes: bytes);
+          '.xlsx';
+      final savedPath = await downloadFile(
+        filename: filename,
+        bytes: bytes,
+        mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      );
 
       if (!mounted) return;
       _showSnackbar(
         savedPath == null
-            ? 'File CSV berhasil diunduh ke folder Downloads'
-            : 'File CSV tersimpan di: $savedPath',
+            ? 'Laporan Excel berhasil diunduh ke folder Downloads'
+            : 'Laporan Excel tersimpan di: $savedPath',
         success: true,
       );
     } on ServerException catch (e) {
@@ -212,7 +213,7 @@ class _AdminRiwayatPageState extends State<AdminRiwayatPage> {
       _showSnackbar(e.message, success: false);
     } catch (_) {
       if (!mounted) return;
-      _showSnackbar('Gagal mengunduh file CSV', success: false);
+      _showSnackbar('Gagal mengunduh laporan Excel', success: false);
     } finally {
       if (mounted) setState(() => _exporting = false);
     }
@@ -502,7 +503,7 @@ class _AdminRiwayatPageState extends State<AdminRiwayatPage> {
               child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
             )
           : const Icon(Icons.download_rounded, size: 16),
-      label: Text(_exporting ? 'Mengunduh...' : 'Export CSV', style: const TextStyle(fontSize: 13)),
+      label: Text(_exporting ? 'Mengunduh...' : 'Export Excel', style: const TextStyle(fontSize: 13)),
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,

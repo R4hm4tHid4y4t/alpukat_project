@@ -16,3 +16,4 @@ fastapi-mail==1.4.1
 slowapi==0.1.9
 aiofiles==24.1.0
 python-dotenv==1.0.1
+openpyxl==3.1.5

@@ -2,11 +2,14 @@ import csv
 import io
 import os
 import aiofiles
+from collections import Counter
 from datetime import datetime, timezone
 from fastapi import APIRouter, Depends, HTTPException, Query, UploadFile, File, Form
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, func, update, delete, and_, or_, desc, text
+from openpyxl import Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from app.database import get_db
 from app.models.user import User, ProfilPengguna
 from app.models.master import Varietas, TingkatKematangan, ModelCnn
@@ -458,28 +461,178 @@ async def export_deteksi(
     )
     rows = result.all()
 
-    output = io.StringIO()
-    writer = csv.writer(output)
-    writer.writerow([
-        "ID", "Pengguna", "Email", "Varietas", "Kematangan",
-        "Confidence Varietas (%)", "Confidence Kematangan (%)",
-        "Status Flag", "Tanggal",
-    ])
+    # ── Susun data mentah ────────────────────────────────────────────────────
+    data_rows = []
     for hasil, user, varietas, kematangan in rows:
-        writer.writerow([
-            hasil.id, user.nama, user.email,
+        data_rows.append((
+            hasil.id,
+            user.nama,
+            user.email,
             varietas.nama_varietas if varietas else "-",
             kematangan.label_kematangan if kematangan else "-",
-            float(hasil.confidence_varietas) if hasil.confidence_varietas else 0,
-            float(hasil.confidence_kematangan) if hasil.confidence_kematangan else 0,
-            hasil.status_flag,
-            hasil.created_at.strftime("%Y-%m-%d %H:%M:%S") if hasil.created_at else "-",
-        ])
+            float(hasil.confidence_varietas) if hasil.confidence_varietas else 0.0,
+            float(hasil.confidence_kematangan) if hasil.confidence_kematangan else 0.0,
+            hasil.status_flag or "-",
+            hasil.created_at.strftime("%d/%m/%Y %H:%M:%S") if hasil.created_at else "-",
+        ))
 
-    output.seek(0)
-    today = datetime.now().strftime("%Y%m%d")
+    # ── Konstanta gaya (cocok dengan referensi Laporan_Penjualan) ────────────
+    C_TITLE  = "FF1F2937"
+    C_DOCNUM = "FF1E40AF"
+    C_BODY   = "FF374151"
+    C_GREY   = "FF6B7280"
+    FILL_HDR = PatternFill("solid", fgColor="FFE5E7EB")
+    FILL_SUM = PatternFill("solid", fgColor="FFD1FAE5")
+    thin     = Side(style="thin", color="FFD1D5DB")
+    bdr      = Border(left=thin, right=thin, top=thin, bottom=thin)
+    FONT     = "Arial"
+
+    # ── Buat workbook ────────────────────────────────────────────────────────
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Riwayat Deteksi"
+    ws.sheet_view.showGridLines = False
+
+    ws.column_dimensions["A"].width = 1.5
+    for letter, w in zip(
+        ["B", "C", "D", "E", "F", "G", "H", "I"],
+        [8, 22, 25, 12, 12, 20, 22, 14, 22],
+    ):
+        ws.column_dimensions[letter].width = w
+
+    # ── BLOK JUDUL ───────────────────────────────────────────────────────────
+    now    = datetime.now()
+    month  = now.strftime("%m")
+    year   = now.strftime("%Y")
+    doc_no = f"RPD/{month}/{year}/{len(data_rows):03d}"
+    hari   = ["Senin","Selasa","Rabu","Kamis","Jumat","Sabtu","Minggu"][now.weekday()]
+    tgl_cetak = now.strftime(f"%d/%m/%Y pukul %H.%M WIB")
+
+    def merge_set(cell_range, value, bold=False, size=10, color=C_BODY, align="center"):
+        ws.merge_cells(cell_range)
+        start = cell_range.split(":")[0]
+        c = ws[start]
+        c.value     = value
+        c.font      = Font(name=FONT, bold=bold, size=size, color=color)
+        c.alignment = Alignment(horizontal=align, vertical="center")
+
+    merge_set("B1:I1", "LAPORAN RIWAYAT DETEKSI",                         bold=True,  size=16, color=C_TITLE)
+    merge_set("B2:I2", "AvoScan – Klasifikasi & Kematangan Alpukat",       bold=False, size=10, color=C_TITLE)
+    merge_set("B3:I3", f"No: {doc_no}",                                    bold=True,  size=11, color=C_DOCNUM)
+    merge_set("B5:I5", f"Periode Laporan  :  Semua Data (s.d. {now.strftime('%d/%m/%Y')})", size=10, color=C_BODY, align="left")
+    merge_set("B6:I6", f"Dicetak Pada       :  {hari}, {tgl_cetak}",       size=10, color=C_BODY, align="left")
+
+    # ── HEADER TABEL (Baris 8) ───────────────────────────────────────────────
+    headers = ["ID", "Pengguna", "Email", "Varietas", "Kematangan",
+               "Conf. Varietas (%)", "Conf. Kematangan (%)", "Status Flag", "Tanggal"]
+    for letter, hdr in zip(["B","C","D","E","F","G","H","I","J"], headers):
+        c = ws[f"{letter}8"]
+        c.value     = hdr
+        c.font      = Font(name=FONT, bold=True, size=9, color=C_TITLE)
+        c.fill      = FILL_HDR
+        c.alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+        c.border    = bdr
+    ws.row_dimensions[8].height = 28
+
+    # ── BARIS DATA ───────────────────────────────────────────────────────────
+    DATA_START = 9
+    FLAG_LABEL = {
+        "perlu_ditinjau": "⚠ Perlu Ditinjau",
+        "valid":          "✔ Valid",
+        "salah":          "✘ Salah",
+    }
+    for r_i, (id_, nama, email, varietas, kematangan, cv, ck, flag, tgl_det) in \
+            enumerate(data_rows, start=DATA_START):
+        values = [
+            id_, nama, email, varietas, kematangan,
+            f"{cv:.2f}%", f"{ck:.2f}%",
+            FLAG_LABEL.get(flag, flag),
+            tgl_det,
+        ]
+        for letter, val, align in zip(
+            ["B","C","D","E","F","G","H","I","J"],
+            values,
+            ["center","left","left","center","center","center","center","center","center"],
+        ):
+            c = ws[f"{letter}{r_i}"]
+            c.value     = val
+            c.font      = Font(name=FONT, size=9, color=C_BODY)
+            c.alignment = Alignment(horizontal=align, vertical="center")
+            c.border    = bdr
+        ws.row_dimensions[r_i].height = 22
+
+    # ── BARIS RINGKASAN ──────────────────────────────────────────────────────
+    total_row = DATA_START + len(data_rows)
+    var_count = Counter(r[3] for r in data_rows)
+    mat_count = Counter(r[4] for r in data_rows)
+    avg_cv    = sum(r[5] for r in data_rows) / len(data_rows) if data_rows else 0
+    avg_ck    = sum(r[6] for r in data_rows) / len(data_rows) if data_rows else 0
+
+    ws.merge_cells(f"B{total_row}:E{total_row}")
+    c = ws[f"B{total_row}"]
+    c.value     = f"TOTAL DATA : {len(data_rows)} rekaman"
+    c.font      = Font(name=FONT, bold=True, size=9, color=C_TITLE)
+    c.fill      = FILL_SUM
+    c.alignment = Alignment(horizontal="center", vertical="center")
+    c.border    = bdr
+
+    for letter, val in [("F", f"Rata-rata: {avg_cv:.1f}%"), ("G", f"Rata-rata: {avg_ck:.1f}%")]:
+        c = ws[f"{letter}{total_row}"]
+        c.value     = val
+        c.font      = Font(name=FONT, bold=True, size=9, color=C_TITLE)
+        c.fill      = FILL_SUM
+        c.alignment = Alignment(horizontal="center", vertical="center")
+        c.border    = bdr
+    for letter in ["H","I","J"]:
+        ws[f"{letter}{total_row}"].fill   = FILL_SUM
+        ws[f"{letter}{total_row}"].border = bdr
+    ws.row_dimensions[total_row].height = 22
+
+    # ── STATISTIK VARIETAS & KEMATANGAN ──────────────────────────────────────
+    stats_row = total_row + 2
+    var_text = "  |  ".join(f"{k}: {v}" for k, v in var_count.items())
+    mat_text = "  |  ".join(f"{k}: {v}" for k, v in mat_count.items())
+    ws.merge_cells(f"B{stats_row}:E{stats_row}")
+    ws[f"B{stats_row}"].value = f"Varietas  :  {var_text}"
+    ws[f"B{stats_row}"].font  = Font(name=FONT, size=8, color=C_GREY)
+    ws.merge_cells(f"F{stats_row}:J{stats_row}")
+    ws[f"F{stats_row}"].value = f"Kematangan  :  {mat_text}"
+    ws[f"F{stats_row}"].font  = Font(name=FONT, size=8, color=C_GREY)
+
+    # ── CATATAN & TANDA TANGAN ───────────────────────────────────────────────
+    note_row = stats_row + 3
+    for i, note in enumerate([
+        "Catatan:",
+        "1. Data dihasilkan otomatis oleh sistem AvoScan.",
+        "2. Harap periksa kembali kesesuaian data dengan hasil fisik di lapangan.",
+    ]):
+        ws.merge_cells(f"B{note_row+i}:E{note_row+i}")
+        ws[f"B{note_row+i}"].value = note
+        ws[f"B{note_row+i}"].font  = Font(name=FONT, size=8, color=C_GREY)
+
+    kota_tgl = f"Padang, {now.strftime('%d %B %Y')}"
+    for r_offset, val, bold in [
+        (0, kota_tgl,          False),
+        (1, "Yang Mengesahkan,", False),
+        (5, admin.nama,         True),
+        (6, "Administrator",    False),
+    ]:
+        ws.merge_cells(f"H{note_row+r_offset}:J{note_row+r_offset}")
+        c = ws[f"H{note_row+r_offset}"]
+        c.value     = val
+        c.font      = Font(name=FONT, bold=bold, size=9 if not bold else 10,
+                           color=C_TITLE if bold else C_BODY)
+        c.alignment = Alignment(horizontal="center")
+
+    # ── Simpan ke bytes & kembalikan ─────────────────────────────────────────
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+
+    today    = now.strftime("%Y%m%d")
+    filename = f"laporan_riwayat_deteksi_{today}.xlsx"
     return StreamingResponse(
-        iter([output.getvalue()]),
-        media_type="text/csv",
-        headers={"Content-Disposition": f"attachment; filename=riwayat_{today}.csv"},
+        iter([buf.read()]),
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={"Content-Disposition": f"attachment; filename={filename}"},
     )
