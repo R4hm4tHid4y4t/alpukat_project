@@ -188,5 +188,18 @@ class AdminRemoteDataSource {
     }
   }
 
-  String getExportUrl() => '/admin/deteksi/export';
+  /// Mengunduh data riwayat deteksi sebagai CSV.
+  /// Menggunakan Dio (bukan URL langsung) agar header Authorization
+  /// (Bearer token) otomatis ikut terkirim lewat interceptor [DioClient].
+  Future<List<int>> exportDeteksiCsv() async {
+    try {
+      final res = await _client.dio.get<List<int>>(
+        '/admin/deteksi/export',
+        options: Options(responseType: ResponseType.bytes),
+      );
+      return res.data ?? <int>[];
+    } on DioException catch (e) {
+      throw ServerException(DioClient.extractErrorMessage(e), statusCode: e.response?.statusCode);
+    }
+  }
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/constants/app_colors.dart';
-import '../../../core/constants/app_constants.dart';
 import '../../../core/errors/exceptions.dart';
+import '../../../core/utils/file_downloader.dart';
 import '../../../data/datasources/admin_remote_datasource.dart';
 import '../../../injection/injection_container.dart';
 import '../../widgets/error_state_widget.dart';
@@ -20,6 +20,7 @@ class _AdminRiwayatPageState extends State<AdminRiwayatPage> {
   String? _error;
   String _search = '';
   String? _flagFilter;
+  bool _exporting = false;
   final _searchCtrl = TextEditingController();
 
   @override
@@ -185,48 +186,36 @@ class _AdminRiwayatPageState extends State<AdminRiwayatPage> {
     ));
   }
 
-  void _exportCSV() {
-    final url = '${AppConstants.apiUrl}/admin/deteksi/export';
-    showDialog(
-      context: context,
-      builder: (ctx) => Dialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: Container(
-          padding: const EdgeInsets.all(24),
-          width: 420,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Row(
-                children: [
-                  Icon(Icons.download_rounded, color: AppColors.primaryGreen, size: 22),
-                  SizedBox(width: 10),
-                  Text('Export Data CSV', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                ],
-              ),
-              const SizedBox(height: 16),
-              const Text('Akses URL berikut di browser untuk mengunduh file CSV (pastikan sudah login):', style: TextStyle(fontSize: 13, color: AppColors.textGrey)),
-              const SizedBox(height: 12),
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(color: const Color(0xFFF8FAF8), borderRadius: BorderRadius.circular(10), border: Border.all(color: const Color(0xFFE0E8E0))),
-                child: SelectableText(url, style: const TextStyle(fontSize: 11, fontFamily: 'monospace', color: AppColors.primaryGreen)),
-              ),
-              const SizedBox(height: 20),
-              Align(
-                alignment: Alignment.centerRight,
-                child: ElevatedButton(
-                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryGreen, foregroundColor: Colors.white),
-                  onPressed: () => Navigator.pop(ctx),
-                  child: const Text('Tutup'),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+  Future<void> _exportCSV() async {
+    if (_exporting) return;
+    setState(() => _exporting = true);
+    try {
+      // Bytes diambil lewat Dio (bukan navigasi ke URL langsung), jadi
+      // header Authorization (Bearer token) otomatis ikut dan tidak lagi
+      // muncul error "Not authenticated".
+      final bytes = await sl<AdminRemoteDataSource>().exportDeteksiCsv();
+      final now = DateTime.now();
+      final filename = 'riwayat_deteksi_'
+          '${now.year}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}'
+          '.csv';
+      final savedPath = await downloadFile(filename: filename, bytes: bytes);
+
+      if (!mounted) return;
+      _showSnackbar(
+        savedPath == null
+            ? 'File CSV berhasil diunduh ke folder Downloads'
+            : 'File CSV tersimpan di: $savedPath',
+        success: true,
+      );
+    } on ServerException catch (e) {
+      if (!mounted) return;
+      _showSnackbar(e.message, success: false);
+    } catch (_) {
+      if (!mounted) return;
+      _showSnackbar('Gagal mengunduh file CSV', success: false);
+    } finally {
+      if (mounted) setState(() => _exporting = false);
+    }
   }
 
   int get _totalDeteksi => _items.length;
@@ -505,9 +494,15 @@ class _AdminRiwayatPageState extends State<AdminRiwayatPage> {
 
   Widget _buildExportButton() {
     return ElevatedButton.icon(
-      onPressed: _exportCSV,
-      icon: const Icon(Icons.download_rounded, size: 16),
-      label: const Text('Export CSV', style: TextStyle(fontSize: 13)),
+      onPressed: _exporting ? null : _exportCSV,
+      icon: _exporting
+          ? const SizedBox(
+              width: 14,
+              height: 14,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            )
+          : const Icon(Icons.download_rounded, size: 16),
+      label: Text(_exporting ? 'Mengunduh...' : 'Export CSV', style: const TextStyle(fontSize: 13)),
       style: ElevatedButton.styleFrom(
         backgroundColor: AppColors.primaryGreen,
         foregroundColor: Colors.white,

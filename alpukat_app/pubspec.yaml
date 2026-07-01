@@ -17,6 +17,9 @@ dependencies:
   # HTTP & Network
   dio: ^5.7.0
 
+  # Web (pengganti dart:html yang sudah deprecated, dipakai untuk download file di Flutter Web)
+  web: ^1.1.0
+
   # Navigation
   go_router: ^14.6.2
 
