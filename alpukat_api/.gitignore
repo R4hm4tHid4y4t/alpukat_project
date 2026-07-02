@@ -14,7 +14,11 @@ storage/uploads/*
 !storage/uploads/.gitkeep
 
 # Model TFLite (file besar, gunakan Git LFS atau simpan terpisah)
+models_tflite/*
 !models_tflite/.gitkeep
+
+# Database dump & seeder (jangan commit data/kredensial)
+*.sql
 
 # Alembic
 alembic/versions/*.py
