@@ -1,0 +1,85 @@
+name: Build APK
+
+# Cara pakai:
+# 1. Set Repository Variable "API_BASE_URL" di:
+#    Settings > Secrets and variables > Actions > Variables tab
+#    Isi dengan URL backend production, contoh: https://alpukat-api.up.railway.app
+#    (Tidak wajib diisi dulu — tanpa ini, APK tetap bisa dibuild tapi akan
+#    mengarah ke localhost dan tidak akan bisa connect ke server manapun.)
+# 2. Jalankan manual lewat tab "Actions" > "Build APK" > "Run workflow",
+#    ATAU otomatis jalan tiap kali push ke branch main.
+# 3. Setelah selesai (~5-10 menit), download APK di bagian "Artifacts"
+#    pada halaman hasil run tersebut.
+# 4. Jika push tag versi (contoh: v1.0.0), APK juga otomatis dilampirkan
+#    ke GitHub Release.
+
+on:
+  workflow_dispatch:
+    inputs:
+      api_base_url:
+        description: "URL backend production (override, opsional)"
+        required: false
+        default: ""
+  push:
+    branches: [main]
+    paths:
+      - "alpukat_app/**"
+      - ".github/workflows/build-apk.yml"
+    tags:
+      - "v*"
+
+jobs:
+  build-apk:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: alpukat_app
+
+    steps:
+      - name: Checkout kode
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: "stable"
+          cache: true
+
+      - name: Tentukan API_BASE_URL yang dipakai
+        id: apiurl
+        run: |
+          if [ -n "${{ inputs.api_base_url }}" ]; then
+            echo "url=${{ inputs.api_base_url }}" >> "$GITHUB_OUTPUT"
+          elif [ -n "${{ vars.API_BASE_URL }}" ]; then
+            echo "url=${{ vars.API_BASE_URL }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "url=http://localhost:8000" >> "$GITHUB_OUTPUT"
+            echo "::warning::API_BASE_URL belum diset (Settings > Secrets and variables > Actions > Variables). APK akan mengarah ke localhost."
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build APK (release)
+        run: |
+          flutter build apk --release \
+            --dart-define=API_BASE_URL=${{ steps.apiurl.outputs.url }}
+
+      - name: Upload APK sebagai artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: alpukat-app-release-apk
+          path: alpukat_app/build/app/outputs/flutter-apk/app-release.apk
+          retention-days: 30
+
+      - name: Buat GitHub Release (hanya saat push tag v*)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: alpukat_app/build/app/outputs/flutter-apk/app-release.apk

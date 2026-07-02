@@ -2,13 +2,23 @@ class AppConstants {
   AppConstants._();
 
   // ============================================================
-  // baseUrl sama untuk Web & Mobile, karena pakai `adb reverse`:
-  //   adb reverse tcp:8000 tcp:8000
-  // Jalankan command itu setiap kali HP baru dicolok/restart debug session.
-  // Tidak perlu IP WiFi, tidak perlu HP & laptop satu network.
+  // DEV LOKAL (default jika --dart-define TIDAK diisi):
+  //   baseUrl sama untuk Web & Mobile, karena pakai `adb reverse`:
+  //     adb reverse tcp:8000 tcp:8000
+  //   Jalankan command itu setiap kali HP baru dicolok/restart debug session.
+  //   Tidak perlu IP WiFi, tidak perlu HP & laptop satu network.
+  //
+  // PRODUCTION (build APK/Web via GitHub Actions):
+  //   URL server online di-inject saat build lewat:
+  //     flutter build apk --dart-define=API_BASE_URL=https://xxxx.up.railway.app
+  //   Tidak perlu edit file ini setiap kali deploy ulang — cukup ubah
+  //   secret/variable API_BASE_URL di GitHub Actions.
   // ============================================================
 
-  static String get baseUrl => 'http://localhost:8000';
+  static String get baseUrl => const String.fromEnvironment(
+        'API_BASE_URL',
+        defaultValue: 'http://localhost:8000',
+      );
 
   static String get apiUrl => '$baseUrl/api';
   static String get storageUrl => '$baseUrl/storage';

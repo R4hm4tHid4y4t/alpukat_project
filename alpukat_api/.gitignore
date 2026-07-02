@@ -13,9 +13,11 @@ env/
 storage/uploads/*
 !storage/uploads/.gitkeep
 
-# Model TFLite (file besar, gunakan Git LFS atau simpan terpisah)
-models_tflite/*
-!models_tflite/.gitkeep
+# Model TFLite: SENGAJA ikut di-commit (bukan di-ignore) karena file ini
+# wajib ada di server saat deploy, dan ukurannya kecil (~2.8MB masing-masing)
+# jadi aman untuk git biasa tanpa perlu Git LFS.
+# models_tflite/*
+# !models_tflite/.gitkeep
 
 # Database dump & seeder (jangan commit data/kredensial)
 *.sql
