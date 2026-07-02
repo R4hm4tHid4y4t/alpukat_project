@@ -473,7 +473,7 @@ async def export_deteksi(
             float(hasil.confidence_varietas) if hasil.confidence_varietas else 0.0,
             float(hasil.confidence_kematangan) if hasil.confidence_kematangan else 0.0,
             hasil.status_flag or "-",
-            hasil.created_at if hasil.created_at else None,
+            hasil.created_at,
         ))
 
     # ── Konstanta gaya ────────────────────────────────────────────────────────
@@ -487,9 +487,12 @@ async def export_deteksi(
     bdr        = Border(left=thin, right=thin, top=thin, bottom=thin)
     FONT       = "Arial"
 
-    COLS   = ["B", "C", "D", "E", "F", "G", "H", "I", "J"]
-    WIDTHS = [7, 20, 28, 12, 16, 14, 15, 16, 19]
-    LAST_COL = COLS[-1]
+    # Tabel digeser 1 kolom ke kanan (mulai dari C, bukan B) supaya marginnya
+    # lebih lega, meniru gaya file referensi (Laporan Penjualan) yang lebih lebar.
+    COLS      = ["C", "D", "E", "F", "G", "H", "I", "J", "K"]
+    WIDTHS    = [7, 20, 28, 12, 16, 14, 15, 16, 19]
+    LAST_COL  = COLS[-1]
+    START_COL = COLS[0]
 
     STATUS_STYLE = {
         "perlu_ditinjau": ("Perlu Ditinjau", "FFB45309", "FFFEF3C7"),
@@ -503,10 +506,11 @@ async def export_deteksi(
     ws.sheet_view.showGridLines = False
 
     ws.column_dimensions["A"].width = 2.5
+    ws.column_dimensions["B"].width = 3.0
     for letter, w in zip(COLS, WIDTHS):
         ws.column_dimensions[letter].width = w
 
-    def merge_set(row, value, bold=False, size=10, color=C_BODY, align="center", start_col="B"):
+    def merge_set(row, value, bold=False, size=10, color=C_BODY, align="center", start_col=START_COL):
         rng = f"{start_col}{row}:{LAST_COL}{row}"
         ws.merge_cells(rng)
         c = ws[f"{start_col}{row}"]
@@ -548,19 +552,27 @@ async def export_deteksi(
     ws.row_dimensions[HEADER_ROW].height = 30
 
     # ── BARIS DATA ───────────────────────────────────────────────────────────
+    # Kolom indeks (sesuai urutan COLS): 0=ID 1=Pengguna 2=Email 3=Varietas
+    # 4=Kematangan 5=ConfVarietas 6=ConfKematangan 7=Status 8=Tanggal
+    COL_ID, COL_NAMA, COL_EMAIL, COL_VAR, COL_MAT, COL_CV, COL_CK, COL_STATUS, COL_TGL = COLS
+
     DATA_START = HEADER_ROW + 1
     for r_i, (id_, nama, email, varietas, kematangan, cv, ck, flag, tgl_det) in \
             enumerate(data_rows, start=DATA_START):
         label, fcolor, fillcolor = STATUS_STYLE.get(flag, (flag, C_BODY, None))
         tgl_str = tgl_det.strftime("%d/%m/%Y %H:%M") if tgl_det else "-"
+        # PENTING: cv & ck dipakai apa adanya (bukan dibagi 100), karena format
+        # angka di bawah ('0.00"%"') menampilkan nilai asli + tanda %, TIDAK
+        # mengalikan otomatis seperti format bawaan Excel "0.00%".
+        # Sehingga cv=95.02 akan tampil sebagai "95.02%", sesuai data asli.
         vals_aligns = [
             (id_, "center", None),
             (nama, "left", None),
             (email, "left", None),
             (varietas, "center", None),
             (kematangan, "center", None),
-            (cv / 100, "center", None),
-            (ck / 100, "center", None),
+            (cv, "center", None),
+            (ck, "center", None),
             (label, "center", "STATUS"),
             (tgl_str, "center", None),
         ]
@@ -575,14 +587,14 @@ async def export_deteksi(
                     c.fill = PatternFill("solid", fgColor=fillcolor)
             else:
                 c.font = Font(name=FONT, size=9, color=C_BODY)
-        ws[f"G{r_i}"].number_format = '0.00"%"'
-        ws[f"H{r_i}"].number_format = '0.00"%"'
+        ws[f"{COL_CV}{r_i}"].number_format = '0.00"%"'
+        ws[f"{COL_CK}{r_i}"].number_format = '0.00"%"'
         ws.row_dimensions[r_i].height = 20
 
     # ── BARIS TOTAL ──────────────────────────────────────────────────────────
     TOTAL_ROW = DATA_START + len(data_rows)
-    ws.merge_cells(f"B{TOTAL_ROW}:E{TOTAL_ROW}")
-    c = ws[f"B{TOTAL_ROW}"]
+    ws.merge_cells(f"{COL_ID}{TOTAL_ROW}:{COL_VAR}{TOTAL_ROW}")
+    c = ws[f"{COL_ID}{TOTAL_ROW}"]
     c.value     = f"TOTAL  :  {len(data_rows)} REKAMAN"
     c.font      = Font(name=FONT, bold=True, size=9.5, color=C_TITLE)
     c.fill      = FILL_TOTAL
@@ -592,18 +604,18 @@ async def export_deteksi(
     avg_cv = sum(r[5] for r in data_rows) / len(data_rows) if data_rows else 0
     avg_ck = sum(r[6] for r in data_rows) / len(data_rows) if data_rows else 0
 
-    ws[f"F{TOTAL_ROW}"].value     = "Rata-rata"
-    ws[f"F{TOTAL_ROW}"].alignment = Alignment(horizontal="center", vertical="center")
-    ws[f"F{TOTAL_ROW}"].font      = Font(name=FONT, bold=True, size=8.5, color=C_TITLE)
-    ws[f"G{TOTAL_ROW}"].value     = avg_cv / 100
-    ws[f"G{TOTAL_ROW}"].number_format = '0.00"%"'
-    ws[f"H{TOTAL_ROW}"].value     = avg_ck / 100
-    ws[f"H{TOTAL_ROW}"].number_format = '0.00"%"'
+    ws[f"{COL_MAT}{TOTAL_ROW}"].value     = "Rata-rata"
+    ws[f"{COL_MAT}{TOTAL_ROW}"].alignment = Alignment(horizontal="center", vertical="center")
+    ws[f"{COL_MAT}{TOTAL_ROW}"].font      = Font(name=FONT, bold=True, size=8.5, color=C_TITLE)
+    ws[f"{COL_CV}{TOTAL_ROW}"].value     = avg_cv
+    ws[f"{COL_CV}{TOTAL_ROW}"].number_format = '0.00"%"'
+    ws[f"{COL_CK}{TOTAL_ROW}"].value     = avg_ck
+    ws[f"{COL_CK}{TOTAL_ROW}"].number_format = '0.00"%"'
 
-    for letter in ["F", "G", "H", "I", "J"]:
+    for letter in [COL_MAT, COL_CV, COL_CK, COL_STATUS, COL_TGL]:
         ws[f"{letter}{TOTAL_ROW}"].fill   = FILL_TOTAL
         ws[f"{letter}{TOTAL_ROW}"].border = bdr
-        if letter in ("G", "H"):
+        if letter in (COL_CV, COL_CK):
             ws[f"{letter}{TOTAL_ROW}"].font      = Font(name=FONT, bold=True, size=9, color=C_TITLE)
             ws[f"{letter}{TOTAL_ROW}"].alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[TOTAL_ROW].height = 22
@@ -615,52 +627,52 @@ async def export_deteksi(
     var_text  = "   ".join(f"{k} ({v})" for k, v in var_count.items()) or "-"
     mat_text  = "   ".join(f"{k} ({v})" for k, v in mat_count.items()) or "-"
 
-    ws.merge_cells(f"B{STAT_ROW}:{LAST_COL}{STAT_ROW}")
-    ws[f"B{STAT_ROW}"].value = f"Distribusi Varietas:  {var_text}"
-    ws[f"B{STAT_ROW}"].font  = Font(name=FONT, size=8.5, color=C_GREY, italic=True)
+    ws.merge_cells(f"{COL_ID}{STAT_ROW}:{LAST_COL}{STAT_ROW}")
+    ws[f"{COL_ID}{STAT_ROW}"].value = f"Distribusi Varietas:  {var_text}"
+    ws[f"{COL_ID}{STAT_ROW}"].font  = Font(name=FONT, size=8.5, color=C_GREY, italic=True)
 
-    ws.merge_cells(f"B{STAT_ROW + 1}:{LAST_COL}{STAT_ROW + 1}")
-    ws[f"B{STAT_ROW + 1}"].value = f"Distribusi Kematangan:  {mat_text}"
-    ws[f"B{STAT_ROW + 1}"].font  = Font(name=FONT, size=8.5, color=C_GREY, italic=True)
+    ws.merge_cells(f"{COL_ID}{STAT_ROW + 1}:{LAST_COL}{STAT_ROW + 1}")
+    ws[f"{COL_ID}{STAT_ROW + 1}"].value = f"Distribusi Kematangan:  {mat_text}"
+    ws[f"{COL_ID}{STAT_ROW + 1}"].font  = Font(name=FONT, size=8.5, color=C_GREY, italic=True)
 
     # ── CATATAN & TANDA TANGAN ───────────────────────────────────────────────
     NOTE_ROW = STAT_ROW + 3
-    ws[f"B{NOTE_ROW}"].value = "Catatan:"
-    ws[f"B{NOTE_ROW}"].font  = Font(name=FONT, size=8.5, bold=True, color=C_GREY)
+    ws[f"{COL_ID}{NOTE_ROW}"].value = "Catatan:"
+    ws[f"{COL_ID}{NOTE_ROW}"].font  = Font(name=FONT, size=8.5, bold=True, color=C_GREY)
     for i, note in enumerate([
         "1. Data dihasilkan otomatis oleh sistem AvoScan berdasarkan hasil inferensi model CNN.",
         "2. Status \"Perlu Ditinjau\" menandakan hasil deteksi perlu diverifikasi kembali secara manual.",
     ], start=1):
-        ws.merge_cells(f"B{NOTE_ROW + i}:F{NOTE_ROW + i}")
-        ws[f"B{NOTE_ROW + i}"].value = note
-        ws[f"B{NOTE_ROW + i}"].font  = Font(name=FONT, size=8, color=C_GREY)
+        ws.merge_cells(f"{COL_ID}{NOTE_ROW + i}:{COL_MAT}{NOTE_ROW + i}")
+        ws[f"{COL_ID}{NOTE_ROW + i}"].value = note
+        ws[f"{COL_ID}{NOTE_ROW + i}"].font  = Font(name=FONT, size=8, color=C_GREY)
 
-    ws.merge_cells(f"G{NOTE_ROW}:{LAST_COL}{NOTE_ROW}")
-    ws[f"G{NOTE_ROW}"].value     = f"Padang, {now.strftime('%d %B %Y')}"
-    ws[f"G{NOTE_ROW}"].font      = Font(name=FONT, size=9, color=C_BODY)
-    ws[f"G{NOTE_ROW}"].alignment = Alignment(horizontal="center")
+    ws.merge_cells(f"{COL_CV}{NOTE_ROW}:{LAST_COL}{NOTE_ROW}")
+    ws[f"{COL_CV}{NOTE_ROW}"].value     = f"Padang, {now.strftime('%d %B %Y')}"
+    ws[f"{COL_CV}{NOTE_ROW}"].font      = Font(name=FONT, size=9, color=C_BODY)
+    ws[f"{COL_CV}{NOTE_ROW}"].alignment = Alignment(horizontal="center")
 
-    ws.merge_cells(f"G{NOTE_ROW + 1}:{LAST_COL}{NOTE_ROW + 1}")
-    ws[f"G{NOTE_ROW + 1}"].value     = "Mengetahui,"
-    ws[f"G{NOTE_ROW + 1}"].font      = Font(name=FONT, size=9, color=C_BODY)
-    ws[f"G{NOTE_ROW + 1}"].alignment = Alignment(horizontal="center")
+    ws.merge_cells(f"{COL_CV}{NOTE_ROW + 1}:{LAST_COL}{NOTE_ROW + 1}")
+    ws[f"{COL_CV}{NOTE_ROW + 1}"].value     = "Mengetahui,"
+    ws[f"{COL_CV}{NOTE_ROW + 1}"].font      = Font(name=FONT, size=9, color=C_BODY)
+    ws[f"{COL_CV}{NOTE_ROW + 1}"].alignment = Alignment(horizontal="center")
 
     SIGN_ROW = NOTE_ROW + 5
     top_border = Border(top=Side(style="thin", color="FF9CA3AF"))
-    ws.merge_cells(f"G{SIGN_ROW}:{LAST_COL}{SIGN_ROW}")
-    ws[f"G{SIGN_ROW}"].value     = admin.nama or "Admin Sistem"
-    ws[f"G{SIGN_ROW}"].font      = Font(name=FONT, bold=True, size=10, color=C_TITLE)
-    ws[f"G{SIGN_ROW}"].alignment = Alignment(horizontal="center")
-    for letter in COLS[COLS.index("G"):]:
+    ws.merge_cells(f"{COL_CV}{SIGN_ROW}:{LAST_COL}{SIGN_ROW}")
+    ws[f"{COL_CV}{SIGN_ROW}"].value     = admin.nama or "Admin Sistem"
+    ws[f"{COL_CV}{SIGN_ROW}"].font      = Font(name=FONT, bold=True, size=10, color=C_TITLE)
+    ws[f"{COL_CV}{SIGN_ROW}"].alignment = Alignment(horizontal="center")
+    for letter in COLS[COLS.index(COL_CV):]:
         ws[f"{letter}{SIGN_ROW}"].border = top_border
 
-    ws.merge_cells(f"G{SIGN_ROW + 1}:{LAST_COL}{SIGN_ROW + 1}")
-    ws[f"G{SIGN_ROW + 1}"].value     = "Administrator"
-    ws[f"G{SIGN_ROW + 1}"].font      = Font(name=FONT, size=8.5, color=C_GREY)
-    ws[f"G{SIGN_ROW + 1}"].alignment = Alignment(horizontal="center")
+    ws.merge_cells(f"{COL_CV}{SIGN_ROW + 1}:{LAST_COL}{SIGN_ROW + 1}")
+    ws[f"{COL_CV}{SIGN_ROW + 1}"].value     = "Administrator"
+    ws[f"{COL_CV}{SIGN_ROW + 1}"].font      = Font(name=FONT, size=8.5, color=C_GREY)
+    ws[f"{COL_CV}{SIGN_ROW + 1}"].alignment = Alignment(horizontal="center")
 
     # Header tabel tetap terlihat saat scroll ke bawah
-    ws.freeze_panes = f"B{DATA_START}"
+    ws.freeze_panes = f"{COL_ID}{DATA_START}"
 
     # Pengaturan cetak: landscape, muat ke lebar 1 halaman
     ws.page_setup.orientation = "landscape"
