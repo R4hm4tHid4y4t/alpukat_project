@@ -93,7 +93,7 @@ async def upload_avatar(
 
     # Hapus foto lama jika ada
     if current_user.foto_profil:
-        old_path = os.path.join("storage", "avatars", current_user.foto_profil.replace("avatars/", ""))
+        old_path = os.path.join(settings.storage_path, current_user.foto_profil)
         if os.path.exists(old_path):
             os.remove(old_path)
 
@@ -102,7 +102,9 @@ async def upload_avatar(
     current_user.foto_profil = relative_path
     await db.commit()
 
-    foto_url = f"{settings.base_url}/storage/avatars/{relative_path.replace('avatars/', '')}"
+    # Pakai helper yang sama dengan gambar deteksi (bukan bangun URL manual
+    # lagi) supaya tidak ada lagi risiko salah path seperti sebelumnya.
+    foto_url = image_service.get_image_url(relative_path)
 
     return success_response(
         data={"foto_profil_url": foto_url},

@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:io';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/errors/exceptions.dart';
+import '../../../core/utils/date_time_helper.dart';
 import '../../../data/datasources/profil_remote_datasource.dart';
 import '../../../injection/injection_container.dart';
 import '../../blocs/auth/auth_bloc.dart';
@@ -46,8 +48,10 @@ class _ProfilPageState extends State<ProfilPage> {
 
       final createdAt = data['created_at'] as String?;
       if (createdAt != null) {
-        final date = DateTime.parse(createdAt);
-        _bergabungSejak = '${_bulan(date.month)} ${date.year}';
+        final date = DateTimeHelper.parseApiUtc(createdAt);
+        if (date != null) {
+          _bergabungSejak = '${_bulan(date.month)} ${date.year}';
+        }
       }
     } catch (_) {
       // Gunakan data dari AuthBloc sebagai fallback
@@ -145,13 +149,28 @@ class _ProfilPageState extends State<ProfilPage> {
                         children: [
                           Stack(
                             children: [
-                              CircleAvatar(
-                                radius: 50,
-                                backgroundColor: AppColors.extraLightGreen,
-                                backgroundImage: _fotoUrl != null ? NetworkImage(_fotoUrl!) : null,
-                                child: _fotoUrl == null
-                                    ? const Icon(Icons.person, size: 50, color: AppColors.primaryGreen)
-                                    : null,
+                              ClipOval(
+                                child: SizedBox(
+                                  width: 100,
+                                  height: 100,
+                                  child: _fotoUrl != null
+                                      ? CachedNetworkImage(
+                                          imageUrl: _fotoUrl!,
+                                          fit: BoxFit.cover,
+                                          placeholder: (_, __) => Container(
+                                            color: AppColors.extraLightGreen,
+                                            child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                          ),
+                                          errorWidget: (_, __, ___) => Container(
+                                            color: AppColors.extraLightGreen,
+                                            child: const Icon(Icons.person, size: 50, color: AppColors.primaryGreen),
+                                          ),
+                                        )
+                                      : Container(
+                                          color: AppColors.extraLightGreen,
+                                          child: const Icon(Icons.person, size: 50, color: AppColors.primaryGreen),
+                                        ),
+                                ),
                               ),
                               Positioned(
                                 right: 0, bottom: 0,

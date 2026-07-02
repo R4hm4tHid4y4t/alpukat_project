@@ -1,7 +1,7 @@
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/date_time_helper.dart';
 import '../../data/models/riwayat_model.dart';
 
 class RiwayatCard extends StatelessWidget {
@@ -10,15 +10,7 @@ class RiwayatCard extends StatelessWidget {
 
   const RiwayatCard({super.key, required this.riwayat, this.onTap});
 
-  String _formatTanggal(String? isoDate) {
-    if (isoDate == null) return '-';
-    try {
-      final date = DateTime.parse(isoDate);
-      return DateFormat('d MMM yyyy · HH:mm', 'id_ID').format(date);
-    } catch (_) {
-      return isoDate;
-    }
-  }
+  String _formatTanggal(String? isoDate) => DateTimeHelper.formatTanggalJam(isoDate);
 
   @override
   Widget build(BuildContext context) {

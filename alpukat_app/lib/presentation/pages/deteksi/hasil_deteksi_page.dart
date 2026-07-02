@@ -227,16 +227,26 @@ class HasilDeteksiPage extends StatelessWidget {
                               ),
                             );
                           },
-                          icon: const Icon(Icons.bookmark_outline, size: 18),
-                          label: const Text('Simpan'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+                            textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            minimumSize: Size.zero,
+                          ),
+                          icon: const Icon(Icons.bookmark_outline, size: 16),
+                          label: const Text('Simpan', overflow: TextOverflow.ellipsis),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: OutlinedButton.icon(
                           onPressed: () => context.pop(),
-                          icon: const Icon(Icons.refresh, size: 18),
-                          label: const Text('Ulang'),
+                          style: OutlinedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+                            textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            minimumSize: Size.zero,
+                          ),
+                          icon: const Icon(Icons.refresh, size: 16),
+                          label: const Text('Ulang', overflow: TextOverflow.ellipsis),
                         ),
                       ),
                       const SizedBox(width: 8),
@@ -253,8 +263,13 @@ class HasilDeteksiPage extends StatelessWidget {
                               ),
                             );
                           },
-                          icon: const Icon(Icons.share, size: 18),
-                          label: const Text('Bagikan'),
+                          style: ElevatedButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 14),
+                            textStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                            minimumSize: Size.zero,
+                          ),
+                          icon: const Icon(Icons.share, size: 16),
+                          label: const Text('Bagikan', overflow: TextOverflow.ellipsis),
                         ),
                       ),
                     ],

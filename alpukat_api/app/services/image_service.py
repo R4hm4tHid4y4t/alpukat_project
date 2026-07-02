@@ -66,7 +66,13 @@ def get_image_url(relative_path: str) -> str:
 
 
 async def save_avatar(image_bytes: bytes, user_id: int) -> str:
-    dir_path = os.path.join("storage", "avatars", str(user_id))
+    # PENTING: harus di dalam settings.storage_path ("storage/uploads"),
+    # karena itu satu-satunya folder yang di-mount sebagai static file oleh
+    # FastAPI (lihat app.mount("/storage", StaticFiles(directory="storage/uploads"))
+    # di main.py). Sebelumnya avatar disimpan di "storage/avatars" — di LUAR
+    # folder yang di-mount — sehingga URL foto profil selalu 404 dan gambar
+    # tidak pernah muncul di aplikasi, walaupun upload-nya "berhasil".
+    dir_path = os.path.join(settings.storage_path, "avatars", str(user_id))
     os.makedirs(dir_path, exist_ok=True)
 
     filename = f"avatar_{int(time.time())}.jpg"

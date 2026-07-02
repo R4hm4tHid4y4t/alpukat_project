@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import '../../../core/constants/app_colors.dart';
 import '../../../core/errors/exceptions.dart';
+import '../../../core/utils/date_time_helper.dart';
 import '../../../data/datasources/deteksi_remote_datasource.dart';
 import '../../../data/models/hasil_deteksi_model.dart';
 import '../../../injection/injection_container.dart';
@@ -120,23 +121,7 @@ class _DetailRiwayatPageState extends State<DetailRiwayatPage> {
     }
   }
 
-  String _formatTanggal(String? isoDate) {
-    if (isoDate == null) return '-';
-    try {
-      final date = DateTime.parse(isoDate);
-      return '${date.day} ${_bulan(date.month)} ${date.year} · ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
-    } catch (_) {
-      return isoDate;
-    }
-  }
-
-  String _bulan(int month) {
-    const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
-    ];
-    return months[month - 1];
-  }
+  String _formatTanggal(String? isoDate) => DateTimeHelper.formatTanggalJam(isoDate);
 
   @override
   Widget build(BuildContext context) {
